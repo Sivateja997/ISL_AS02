@@ -1,0 +1,194 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+___6. In this exercise, you will further analyze the Wage data set considered throughout this chapter.___
+
+a. Perform polynomial regression to predict wage using age. Use
+cross-validation to select the optimal degree d for the polynomial. What degree was chosen, and how does this compare to
+the results of hypothesis testing using ANOVA? Make a plot of
+the resulting polynomial fit to the data.
+
+Load Wage dataset. Keep an array of all cross-validation errors. We are performing K-fold cross validation with K=10.
+```{r}
+set.seed(1)
+library(ISLR)
+library(boot)
+all.deltas = rep(NA, 10)
+for (i in 1:10) {
+  glm.fit = glm(wage~poly(age, i), data=Wage)
+  all.deltas[i] = cv.glm(Wage, glm.fit, K=10)$delta[2]
+}
+plot(1:10, all.deltas, xlab="Degree", ylab="CV error", type="l", pch=20, lwd=2, ylim=c(1590, 1700))
+min.point = min(all.deltas)
+sd.points = sd(all.deltas)
+abline(h=min.point + 0.2 * sd.points, col="red", lty="dashed")
+abline(h=min.point - 0.2 * sd.points, col="red", lty="dashed")
+legend("topright", "0.2-standard deviation lines", lty="dashed", col="red")
+```
+he cv-plot with standard deviation lines show that d=3 is the smallest degree giving reasonably small cross-validation error.
+
+We now find best degree using Anova.
+```{r}
+fit.1 = lm(wage~poly(age, 1), data=Wage)
+fit.2 = lm(wage~poly(age, 2), data=Wage)
+fit.3 = lm(wage~poly(age, 3), data=Wage)
+fit.4 = lm(wage~poly(age, 4), data=Wage)
+fit.5 = lm(wage~poly(age, 5), data=Wage)
+fit.6 = lm(wage~poly(age, 6), data=Wage)
+fit.7 = lm(wage~poly(age, 7), data=Wage)
+fit.8 = lm(wage~poly(age, 8), data=Wage)
+fit.9 = lm(wage~poly(age, 9), data=Wage)
+fit.10 = lm(wage~poly(age, 10), data=Wage)
+anova(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7, fit.8, fit.9, fit.10)
+```
+Anova shows that all polynomials above degree 3 are insignificant at 1 significance level.
+
+We now plot the polynomial prediction on the data
+```{r}
+plot(wage~age, data=Wage, col="darkgrey")
+agelims = range(Wage$age)
+age.grid = seq(from=agelims[1], to=agelims[2])
+lm.fit = lm(wage~poly(age, 3), data=Wage)
+lm.pred = predict(lm.fit, data.frame(age=age.grid))
+lines(age.grid, lm.pred, col="blue", lwd=2)
+```
+
+b. Fit a step function to predict wage using age, and perform crossvalidation to choose the optimal number of cuts. Make a plot of
+the fit obtained.
+
+We use cut points of up to 10.
+```{r}
+all.cvs = rep(NA, 10)
+for (i in 2:10) {
+  Wage$age.cut = cut(Wage$age, i)
+  lm.fit = glm(wage~age.cut, data=Wage)
+  all.cvs[i] = cv.glm(Wage, lm.fit, K=10)$delta[2]
+}
+plot(2:10, all.cvs[-1], xlab="Number of cuts", ylab="CV error", type="l", pch=20, lwd=2)
+```
+The cross validation shows that test error is minimum for k=8 cuts.
+
+We now train the entire data with step function using 8 cuts and plot it.
+```{r}
+lm.fit = glm(wage~cut(age, 8), data=Wage)
+agelims = range(Wage$age)
+age.grid = seq(from=agelims[1], to=agelims[2])
+lm.pred = predict(lm.fit, data.frame(age=age.grid))
+plot(wage~age, data=Wage, col="darkgrey")
+lines(age.grid, lm.pred, col="red", lwd=2)
+```
+
+
+___9. This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentration in parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.___
+
+```{r}
+set.seed(1)
+library(MASS)
+attach(Boston)
+```
+
+
+a. Use the poly() function to fit a cubic polynomial regression to
+predict nox using dis. Report the regression output, and plot
+the resulting data and polynomial fits.
+
+```{r}
+lm.fit = lm(nox ~ poly(dis, 3), data = Boston)
+summary(lm.fit)
+```
+
+```{r}
+dislim = range(dis)
+dis.grid = seq(from = dislim[1], to = dislim[2], by = 0.1)
+lm.pred = predict(lm.fit, list(dis = dis.grid))
+plot(nox ~ dis, data = Boston, col = "darkgrey")
+lines(dis.grid, lm.pred, col = "red", lwd = 2)
+```
+
+Summary demonstrates that when forecasting nox with dis, all polynomial terms are meaningful. The plot displays a smooth curve that reasonably fits the data.
+
+b. Plot the polynomial fits for a range of different polynomial
+degrees (say, from 1 to 10), and report the associated residual
+sum of squares.
+
+We plot polynomials of degrees 1 to 10 and save train RSS.
+```{r}
+all.rss = rep(NA, 10)
+for (i in 1:10) {
+    lm.fit = lm(nox ~ poly(dis, i), data = Boston)
+    all.rss[i] = sum(lm.fit$residuals^2)
+}
+all.rss
+```
+As expected, train RSS monotonically decreases with degree of polynomial.
+
+c. Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.
+
+We use a 10-fold cross validation to pick the best polynomial degree
+```{r}
+library(boot)
+all.deltas = rep(NA, 10)
+for (i in 1:10) {
+    glm.fit = glm(nox ~ poly(dis, i), data = Boston)
+    all.deltas[i] = cv.glm(Boston, glm.fit, K = 10)$delta[2]
+}
+plot(1:10, all.deltas, xlab = "Degree", ylab = "CV error", type = "l", pch = 20, 
+    lwd = 2)
+```
+A 10-fold CV reveals that the CV error decreases from degree 1 to degree 3, remains about constant until degree 5, and then increases for higher degrees. The best polynomial degree, in our opinion, is 4.
+
+d. Use the bs() function to fit a regression spline to predict nox
+using dis. Report the output for the fit using four degrees of
+freedom. How did you choose the knots? Plot the resulting fit.
+
+We can see that dis has roughly 1 and 13 limitations, respectively. We divide this range into four relatively equal portions, and we create knots at [4,7,11]. Recall that the R bs function requires either a df or knots argument. Knots are disregarded if both are specified.
+```{r}
+library(splines)
+sp.fit = lm(nox ~ bs(dis, df = 4, knots = c(4, 7, 11)), data = Boston)
+summary(sp.fit)
+```
+
+```{r}
+sp.pred = predict(sp.fit, list(dis = dis.grid))
+plot(nox ~ dis, data = Boston, col = "darkgrey")
+lines(dis.grid, sp.pred, col = "red", lwd = 2)
+```
+
+e. Now fit a regression spline for a range of degrees of freedom, and
+plot the resulting fits and report the resulting RSS. Describe the
+results obtained.
+
+We fit regression splines with dfs between 3 and 16.
+```{r}
+all.cv = rep(NA, 16)
+for (i in 3:16) {
+    lm.fit = lm(nox ~ bs(dis, df = i), data = Boston)
+    all.cv[i] = sum(lm.fit$residuals^2)
+}
+all.cv[-c(1, 2)]
+
+```
+Train RSS monotonically decreases till df=14 and then slightly increases for df=15 and df=16.
+
+f. Perform cross-validation or another approach in order to select
+the best degrees of freedom for a regression spline on this data.
+Describe your results.
+
+Finally, we use a 10-fold cross validation to find best df. We try all integer values of df between 3 and 16.
+```{r}
+all.cv = rep(NA, 16)
+for (i in 3:16) {
+    lm.fit = glm(nox ~ bs(dis, df = i), data = Boston)
+    all.cv[i] = cv.glm(Boston, lm.fit, K = 10)$delta[2]
+}
+```
+
+```{r}
+plot(3:16, all.cv[-c(1, 2)], lwd = 2, type = "l", xlab = "df", ylab = "CV error")
+```
+CV error is more jumpy in this case, but attains minimum at df=10. We pick 10 as the optimal degrees of freedom.

@@ -1,0 +1,299 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+___8. In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.___
+
+(a) Use the rnorm() function to generate a predictor X of length n = 100, as well as a noise vector ϵ of length n = 100.
+
+```{r}
+set.seed(1)
+X = rnorm(100)
+eps = rnorm(100)
+```
+
+b. Generate a response vector Y of length n = 100 according to the model
+Y = β0 + β1X + β2X2 + β3X3 + ϵ,
+where β0, β1, β2, and β3 are constants of your choice.
+
+By selecting β0 = 3, β1 = 2, β2 = -3, and β3 = 0.3
+```{r}
+beta0 = 3
+beta1 = 2
+beta2 = -3
+beta3 = 0.3
+Y = beta0 + beta1 * X + beta2 * X^2 + beta3 * X^3 + eps
+```
+
+c. Use the reg subsets() function to perform best subset selection in order to choose the best model containing the predictors
+X, X2,...,X10. What is the best model obtained according to
+Cp, BIC, and adjusted R2? Show some plots to provide evidence
+for your answer, and report the coefficients of the best model obtained. Note you will need to use the data.frame() function to
+create a single data set containing both X and Y .
+
+```{r}
+
+library(leaps)
+data.full = data.frame(y = Y, x = X)
+mod.full = regsubsets(y ~ poly(x, 10, raw = T), data = data.full, nvmax = 10)
+mod.summary = summary(mod.full)
+
+# Find the model size for best cp, BIC and adjr2
+which.min(mod.summary$cp)
+```
+
+```{r}
+which.min(mod.summary$bic)
+```
+
+```{r}
+which.max(mod.summary$adjr2)
+```
+
+```{r}
+# Plot cp, BIC and adjr2
+plot(mod.summary$cp, xlab = "Subset Size", ylab = "Cp", pch = 20, type = "l")
+points(3, mod.summary$cp[3], pch = 4, col = "red", lwd = 7)
+```
+
+```{r}
+plot(mod.summary$bic, xlab = "Subset Size", ylab = "BIC", pch = 20, type = "l")
+points(3, mod.summary$bic[3], pch = 4, col = "red", lwd = 7)
+```
+
+```{r}
+plot(mod.summary$adjr2, xlab = "Subset Size", ylab = "Adjusted R2", pch = 20, 
+    type = "l")
+points(3, mod.summary$adjr2[3], pch = 4, col = "red", lwd = 7)
+```
+We find that with Cp, BIC and Adjusted R2 criteria, 3, 3, and 3 variable models are respectively picked.
+
+```{r}
+coefficients(mod.full, id = 3)
+```
+All statistics pick X7 over X3. The remaining coefficients are quite close to β s.
+
+d. Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the
+results in (c)?
+
+```{r}
+mod.fwd = regsubsets(y ~ poly(x, 10, raw = T), data = data.full, nvmax = 10, 
+    method = "forward")
+mod.bwd = regsubsets(y ~ poly(x, 10, raw = T), data = data.full, nvmax = 10, 
+    method = "backward")
+fwd.summary = summary(mod.fwd)
+bwd.summary = summary(mod.bwd)
+which.min(fwd.summary$cp)
+```
+
+```{r}
+which.min(bwd.summary$cp)
+```
+
+```{r}
+which.min(fwd.summary$bic)
+```
+
+```{r}
+which.min(bwd.summary$bic)
+```
+
+```{r}
+which.max(fwd.summary$adjr2)
+```
+
+```{r}
+which.max(bwd.summary$adjr2)
+```
+
+```{r}
+# Plot the statistics
+par(mfrow = c(3, 2))
+plot(fwd.summary$cp, xlab = "Subset Size", ylab = "Forward Cp", pch = 20, type = "l")
+points(3, fwd.summary$cp[3], pch = 4, col = "red", lwd = 7)
+plot(bwd.summary$cp, xlab = "Subset Size", ylab = "Backward Cp", pch = 20, type = "l")
+points(3, bwd.summary$cp[3], pch = 4, col = "red", lwd = 7)
+plot(fwd.summary$bic, xlab = "Subset Size", ylab = "Forward BIC", pch = 20, 
+    type = "l")
+points(3, fwd.summary$bic[3], pch = 4, col = "red", lwd = 7)
+plot(bwd.summary$bic, xlab = "Subset Size", ylab = "Backward BIC", pch = 20, 
+    type = "l")
+points(3, bwd.summary$bic[3], pch = 4, col = "red", lwd = 7)
+plot(fwd.summary$adjr2, xlab = "Subset Size", ylab = "Forward Adjusted R2", 
+    pch = 20, type = "l")
+points(3, fwd.summary$adjr2[3], pch = 4, col = "red", lwd = 7)
+plot(bwd.summary$adjr2, xlab = "Subset Size", ylab = "Backward Adjusted R2", 
+    pch = 20, type = "l")
+points(4, bwd.summary$adjr2[4], pch = 4, col = "red", lwd = 7)
+```
+all statistics pick 3 variable models except backward stepwise with adjusted R2. Here are the coefficients
+
+```{r}
+coefficients(mod.fwd, id = 3)
+```
+
+```{r}
+coefficients(mod.bwd, id = 3)
+```
+
+```{r}
+coefficients(mod.fwd, id = 4)
+```
+Here, X7 is chosen over X3 by forward stepwise. While backward stepwise with four variables selects X4 and X7, backward stepwise with three variables selects X9. Near s, all other coefficients are.
+
+e. Now fit a lasso model to the simulated data, again using X, X2,
+...,X10 as predictors. Use cross-validation to select the optimal
+value of λ. Create plots of the cross-validation error as a function
+of λ. Report the resulting coefficient estimates, and discuss the
+results obtained.
+
+Training Lasso on the data
+```{r}
+
+library(glmnet)
+```
+
+```{r}
+xmat = model.matrix(y ~ poly(x, 10, raw = T), data = data.full)[, -1]
+mod.lasso = cv.glmnet(xmat, Y, alpha = 1)
+best.lambda = mod.lasso$lambda.min
+best.lambda
+```
+
+```{r}
+plot(mod.lasso)
+```
+
+```{r}
+# Next fit the model on entire data using best lambda
+best.model = glmnet(xmat, Y, alpha = 1)
+predict(best.model, s = best.lambda, type = "coefficients")
+```
+
+Lasso also picks X5 over X3. It also picks X7 with negligible coefficient.
+
+f. Now generate a response vector Y according to the model
+Y = β0 + β7X7 + ϵ,
+and perform best subset selection and the lasso. Discuss the
+results obtained.
+
+Create new Y with different β7=7.
+```{r}
+beta7 = 7
+Y = beta0 + beta7 * X^7 + eps
+# Predict using regsubsets
+data.full = data.frame(y = Y, x = X)
+mod.full = regsubsets(y ~ poly(x, 10, raw = T), data = data.full, nvmax = 10)
+mod.summary = summary(mod.full)
+
+# Find the model size for best cp, BIC and adjr2
+which.min(mod.summary$cp)
+```
+
+```{r}
+which.min(mod.summary$bic)
+```
+
+```{r}
+which.max(mod.summary$adjr2)
+```
+
+```{r}
+coefficients(mod.full, id = 1)
+```
+
+```{r}
+coefficients(mod.full, id = 2)
+```
+
+```{r}
+coefficients(mod.full, id = 4)
+```
+
+```{r}
+xmat = model.matrix(y ~ poly(x, 10, raw = T), data = data.full)[, -1]
+mod.lasso = cv.glmnet(xmat, Y, alpha = 1)
+best.lambda = mod.lasso$lambda.min
+best.lambda
+```
+
+```{r}
+best.model = glmnet(xmat, Y, alpha = 1)
+predict(best.model, s = best.lambda, type = "coefficients")
+```
+Lasso also picks the best 1-variable model but intercet is quite off (3.8 vs 3).
+
+
+___9. In this exercise, we will predict the number of applications received using the other variables in the College data set.___
+
+a. Split the data set into a training set and a test set.
+```{r}
+library(ISLR)
+set.seed(11)
+sum(is.na(College))
+```
+
+```{r}
+train.size = dim(College)[1] / 2
+train = sample(1:dim(College)[1], train.size)
+test = -train
+College.train = College[train, ]
+College.test = College[test, ]
+```
+
+b. Fit a linear model using least squares on the training set, and
+report the test error obtained.
+```{r}
+lm.fit = lm(Apps~., data=College.train)
+lm.pred = predict(lm.fit, College.test)
+mean((College.test[, "Apps"] - lm.pred)^2)
+```
+Test RSS is 1026096.
+
+c. Fit a ridge regression model on the training set, with λ chosen
+by cross-validation. Report the test error obtained.
+```{r}
+library(glmnet)
+```
+
+```{r}
+train.mat = model.matrix(Apps~., data=College.train)
+test.mat = model.matrix(Apps~., data=College.test)
+grid = 10 ^ seq(4, -2, length=100)
+mod.ridge = cv.glmnet(train.mat, College.train[, "Apps"], alpha=0, lambda=grid, thresh=1e-12)
+lambda.best = mod.ridge$lambda.min
+lambda.best
+```
+
+```{r}
+ridge.pred = predict(mod.ridge, newx=test.mat, s=lambda.best)
+mean((College.test[, "Apps"] - ridge.pred)^2)
+```
+
+Test RSS is almost equal to OLS, 1026069.
+
+d. Fit a lasso model on the training set, with λ chosen by crossvalidation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+```{r}
+mod.lasso = cv.glmnet(train.mat, College.train[, "Apps"], alpha=1, lambda=grid, thresh=1e-12)
+lambda.best = mod.lasso$lambda.min
+lambda.best
+```
+
+```{r}
+lasso.pred = predict(mod.lasso, newx=test.mat, s=lambda.best)
+mean((College.test[, "Apps"] - lasso.pred)^2)
+```
+Test RSS is almost equal to OLS, 1026036.
+
+```{r}
+mod.lasso = glmnet(model.matrix(Apps~., data=College), College[, "Apps"], alpha=1)
+predict(mod.lasso, s=lambda.best, type="coefficients")
+```
+
